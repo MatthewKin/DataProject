@@ -37,15 +37,6 @@ h2 { margin: 0; font-size: 28px; letter-spacing: -.03em; }
 .last-distance { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 15px; padding-top: 12px; border-top: 1px solid var(--line); }
 .last-distance span { color: var(--muted); font-size: 9px; }
 .last-distance strong { font-size: 14px; }
-.direction-widget { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
-.direction-compass { position: relative; display: grid; place-items: center; flex: 0 0 58px; width: 58px; height: 58px; border: 1px solid var(--ink); border-radius: 50%; font: 10px "Courier New", monospace; }
-.direction-compass > span { position: absolute; top: 4px; }
-.direction-compass > small { position: absolute; bottom: 4px; font-size: 8px; }
-.direction-arrow { font-size: 28px; line-height: 1; transform-origin: center; transition: transform .18s ease; }
-.direction-copy { min-width: 0; }
-.direction-copy strong, .direction-copy small { display: block; }
-.direction-copy strong { font: bold 10px "Courier New", monospace; }
-.direction-copy small { margin-top: 5px; color: var(--muted); font-size: 10px; line-height: 1.4; }
 .movement-instructions { margin: 12px 0; }
 .primary-button { width: 100%; padding: 11px 12px; border: 1px solid var(--ink); background: var(--ink); color: #fff; font-size: 10px; cursor: pointer; }
 .primary-button:hover, .primary-button:focus-visible { background: #fff; color: var(--ink); outline: 2px solid var(--ink); outline-offset: 2px; }

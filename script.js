@@ -74,9 +74,6 @@ const restartButton = $("restart-button");
 const mapStatusEl = $("map-status");
 const coordinatesEl = $("coordinates");
 const resultOverlay = $("result-overlay");
-const directionArrow = $("direction-arrow");
-const directionLabel = $("direction-label");
-const directionDetail = $("direction-detail");
 const movementInstructions = $("movement-instructions");
 const gameMusic = $("game-music");
 const introOverlay = $("intro-overlay");
@@ -296,7 +293,6 @@ function evaluatePosition(isFirstPosition) {
   }
 
   const distance = nearest.distance;
-  updateDirectionIndicator(latestGuessPoint, nearest.restroom, distance);
   coordinatesEl.textContent = `LAT ${latestGuessPoint.lat.toFixed(4)} / LNG ${latestGuessPoint.lng.toFixed(4)}`;
   distanceReadoutEl.textContent = formatDistance(distance);
 
@@ -311,32 +307,19 @@ function evaluatePosition(isFirstPosition) {
 
   let word, message, heat;
   if (isFirstPosition) {
-    if (distance < 250) [word, message, heat] = ["SCORCHING", "Your starting point is very close to a qualifying facility. Follow the compass.", 92];
-    else if (distance < 500) [word, message, heat] = ["HOT", "You're within a few city blocks. Follow the compass toward the nearest target.", 72];
-    else if (distance < 850) [word, message, heat] = ["WARM", "You're in the neighborhood. Use the direction indicator to navigate.", 48];
-    else [word, message, heat] = ["COLD", "The nearest target is farther away. Follow the compass and keep exploring.", 20];
+    if (distance < 250) [word, message, heat] = ["SCORCHING", "Your starting point is very close to a qualifying facility.", 92];
+    else if (distance < 500) [word, message, heat] = ["HOT", "You're within a few city blocks of the nearest target.", 72];
+    else if (distance < 850) [word, message, heat] = ["WARM", "You're in the neighborhood. Use the distance and hot-and-cold clues to guide your search.", 48];
+    else [word, message, heat] = ["COLD", "The nearest target is farther away. Keep exploring.", 20];
   } else {
     const change = previousDistance - distance;
     if (change > 8) [word, message, heat] = ["HOTTER!", "You're getting closer to a qualifying restroom.", Math.min(98, 60 + change / 5)];
-    else if (change < -8) [word, message, heat] = ["COLDER", "You moved farther from the nearest qualifying restroom. Check the compass.", 20];
+    else if (change < -8) [word, message, heat] = ["COLDER", "You moved farther from the nearest qualifying restroom. Try another direction.", 20];
     else [word, message, heat] = ["SAME TEMP", "You're about the same distance away. Try another direction.", 42];
   }
   previousDistance = distance;
   setTemperature(word, message, heat);
   updateStats();
-}
-
-function updateDirectionIndicator(from, target, distance) {
-  const lat1 = latToRad(from.lat), lat2 = latToRad(target.lat);
-  const dLng = latToRad(target.lng - from.lng);
-  const y = Math.sin(dLng) * Math.cos(lat2);
-  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
-  const bearing = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
-  directionArrow.style.transform = `rotate(${bearing}deg)`;
-  const directions = ["NORTH", "NORTH-EAST", "EAST", "SOUTH-EAST", "SOUTH", "SOUTH-WEST", "WEST", "NORTH-WEST"];
-  const index = Math.round(bearing / 45) % 8;
-  directionLabel.textContent = `HEAD ${directions[index]}`;
-  directionDetail.textContent = `${formatDistance(distance)} to nearest qualifying target`;
 }
 
 function setTemperature(word, message, heatPercent) {
@@ -424,9 +407,6 @@ function resetGame() {
   distanceReadoutEl.textContent = "—";
   coordinatesEl.textContent = "LAT — / LNG —";
   mapStatusEl.textContent = "AWAITING RANDOM SPAWN";
-  directionArrow.style.transform = "rotate(0deg)";
-  directionLabel.textContent = "DIRECTION UNKNOWN";
-  directionDetail.textContent = "Your compass points toward the nearest target.";
   movementInstructions.textContent = "Press Begin Search to spawn at a random location. Use W, A, S, and D to move 25 meters at a time. Arrow keys pan the map.";
   setTemperature("READY?", "Press Begin Search to start at a random location.", 0);
   updateStats();
