@@ -17,7 +17,7 @@
       <div class="brand">
         <div class="brand-mark">TT</div>
         <div>
-          <p class="eyebrow">NYC RESTROOM SEARCH GAME</p>
+          <p class="eyebrow">NYC PUBLIC RESTROOM SEARCH</p>
           <h1>TOILET TROUBLE</h1>
         </div>
       </div>
@@ -64,15 +64,19 @@
           <p class="movement-instructions" id="movement-instructions">Press Begin Search to spawn randomly. Use W, A, S, and D to move 25 meters at a time. Arrow keys pan the map.</p>
           <button class="primary-button restart-full" id="restart-button">RESTART SEARCH</button>
         </section>
-        <p class="disclaimer">DEMO DATA ONLY · Restroom positions are illustrative. Always verify facility details with official sources.</p>
+        <p class="disclaimer">CSV DATA · Listings are filtered to operational, fully accessible facilities. Verify details before visiting.</p>
       </aside>
 
       <section class="map-section">
         <div class="map-toolbar">
-          <div><span class="map-status-dot"></span><strong>MANHATTAN MAP</strong><span class="toolbar-divider">/</span><span id="map-status">AWAITING FIRST GUESS</span></div>
+          <div><span class="map-status-dot"></span><strong>UNION SQUARE MAP</strong><span class="toolbar-divider">/</span><span id="map-status">AWAITING FIRST GUESS</span></div>
           <div class="map-legend"><span><i class="legend-guess"></i> YOUR GUESS</span><span><i class="legend-zone"></i> SEARCH ZONE</span></div>
         </div>
         <div id="map" aria-label="Interactive map of Manhattan"></div>
+        <div class="preview-banner hidden" id="preview-banner" aria-live="polite">
+          <strong>RESTROOM PREVIEW</strong>
+          <span>Memorize the available toilets · Starting in <b id="preview-countdown">5</b></span>
+        </div>
         <div class="intro-overlay" id="intro-overlay" role="dialog" aria-modal="true" aria-labelledby="intro-title">
           <div class="intro-card">
             <p class="eyebrow">HOW TO PLAY</p>
@@ -84,7 +88,7 @@
               <li><strong>Follow the clues.</strong><span>The compass points toward the nearest qualifying restroom. Hot-and-cold feedback tells you whether you are getting closer.</span></li>
               <li><strong>Find the restroom.</strong><span>Get within 45 meters of a qualifying location to win. The stopwatch will start when you press Begin Search</span></li>
             </ol>
-            <p class="intro-note">Demo only: restroom locations are illustrative and are not verified real-world facilities.</p>
+            <p class="intro-note">CSV data: locations come from the provided public-restroom dataset. Verify current hours before visiting.</p>
             <button class="primary-button full-width" id="begin-button">BEGIN SEARCH</button>
           </div>
         </div>

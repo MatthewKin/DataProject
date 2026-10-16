@@ -1,16 +1,59 @@
 // TOILET TROUBLE — Hot & Cold NYC
-// Prototype data only. Replace SAMPLE_RESTROOMS with a cleaned, static NYC Open Data dataset.
+// Loads real public-restroom listings from Public_Restrooms_20261015.csv.
 
-const SAMPLE_RESTROOMS = [
-  { id: 1, name: "Sample Facility A", lat: 40.7308, lng: -73.9973, operational: true, accessible: true },
-  { id: 2, name: "Sample Facility B", lat: 40.7359, lng: -73.9911, operational: true, accessible: true },
-  { id: 3, name: "Sample Facility C", lat: 40.7248, lng: -73.9997, operational: true, accessible: false },
-  { id: 4, name: "Sample Facility D", lat: 40.7412, lng: -73.9897, operational: true, accessible: true },
-  { id: 5, name: "Sample Facility E", lat: 40.7282, lng: -73.9846, operational: false, accessible: true },
-  { id: 6, name: "Sample Facility F", lat: 40.7187, lng: -73.9960, operational: true, accessible: true },
-  { id: 7, name: "Sample Facility G", lat: 40.7440, lng: -73.9992, operational: true, accessible: false },
-  { id: 8, name: "Sample Facility H", lat: 40.7384, lng: -73.9822, operational: true, accessible: true }
-];
+let SAMPLE_RESTROOMS = [];
+let qualifyingRestrooms = [];
+
+function parseCSV(text) {
+  const rows = [];
+  let row = [], field = "", quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i], next = text[i + 1];
+    if (quoted) {
+      if (c === '"' && next === '"') { field += '"'; i++; }
+      else if (c === '"') quoted = false;
+      else field += c;
+    } else {
+      if (c === '"') quoted = true;
+      else if (c === ",") { row.push(field); field = ""; }
+      else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+      else if (c !== "\r") field += c;
+    }
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  if (!rows.length) return [];
+  const headers = rows.shift().map(h => h.trim());
+  return rows.filter(r => r.some(v => v.trim() !== "")).map(values => {
+    const item = {};
+    headers.forEach((header, i) => item[header] = (values[i] ?? "").trim());
+    return item;
+  });
+}
+
+async function loadRestroomData() {
+  const response = await fetch("Public_Restrooms_20261015.csv");
+  if (!response.ok) throw new Error(`CSV load failed (${response.status})`);
+  const records = parseCSV(await response.text());
+  SAMPLE_RESTROOMS = records.map((row, index) => ({
+    id: index + 1,
+    name: row["Facility Name"] || "Unnamed restroom",
+    lat: Number(row["Latitude"]),
+    lng: Number(row["Longitude"]),
+    operational: row["Status"] === "Operational",
+    accessible: row["Accessibility"] === "Fully Accessible",
+    status: row["Status"] || "Unknown",
+    accessibility: row["Accessibility"] || "Not specified",
+    hours: row["Hours of Operation"] || "Hours not listed",
+    locationType: row["Location Type"] || "Public facility",
+    restroomType: row["Restroom Type"] || "Type not listed"
+  })).filter(r => Number.isFinite(r.lat) && Number.isFinite(r.lng));
+
+  // Keep targets inside the Union Square search zone and require operational,
+  // fully accessible facilities, matching the mission requirements.
+  qualifyingRestrooms = SAMPLE_RESTROOMS.filter(r =>
+    r.operational && r.accessible && distanceMeters(r, CONFIG.destination) <= CONFIG.searchZoneRadiusMeters
+  );
+}
 
 const CONFIG = {
   winRadiusMeters: 45,
@@ -38,6 +81,8 @@ const movementInstructions = $("movement-instructions");
 const gameMusic = $("game-music");
 const introOverlay = $("intro-overlay");
 const beginButton = $("begin-button");
+const previewBanner = $("preview-banner");
+const previewCountdown = $("preview-countdown");
 
 let map;
 let latestGuessPoint = null;
@@ -52,8 +97,11 @@ let timerInterval = null;
 let previousDistance = null;
 let destinationMarker;
 let searchZone;
+let restroomMarkers = [];
+let previewTimeout = null;
+let previewInterval = null;
 
-const qualifyingRestrooms = SAMPLE_RESTROOMS.filter(r => r.operational && r.accessible);
+
 
 function initMap() {
   map = L.map("map", { zoomControl: true }).setView([CONFIG.destination.lat, CONFIG.destination.lng], 15);
@@ -76,12 +124,77 @@ function initMap() {
     }), interactive: false
   }).addTo(map);
 
+  createRestroomMarkers();
+
   // Map clicks are reserved for normal map interaction. The player starts at a random location.
   map.on("click", () => {
     if (!gameOver && latestGuessPoint) {
       setTemperature("USE WASD", "Move with W, A, S, and D. Each press moves 25 meters; arrow keys pan the map.", 0);
     }
   });
+}
+
+function showRestroomMarkers() {
+  restroomMarkers.forEach(marker => {
+    if (!map.hasLayer(marker)) marker.addTo(map);
+  });
+}
+
+function hideRestroomMarkers() {
+  restroomMarkers.forEach(marker => {
+    if (map.hasLayer(marker)) map.removeLayer(marker);
+  });
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, char => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  })[char]);
+}
+
+function createRestroomMarkers() {
+  restroomMarkers = qualifyingRestrooms.map(restroom => {
+    const marker = L.marker([restroom.lat, restroom.lng], {
+      icon: L.divIcon({
+        className: "",
+        html: '<div class="restroom-marker" aria-label="Available restroom">WC</div>',
+        iconSize: [30, 30],
+        iconAnchor: [15, 15]
+      })
+    });
+    marker.bindTooltip(
+      `<strong>${escapeHtml(restroom.name)}</strong><br>${escapeHtml(restroom.locationType)} · Fully accessible · Operational<br>${escapeHtml(restroom.hours)}`,
+      { direction: "top", maxWidth: 260 }
+    );
+    return marker;
+  });
+}
+
+function beginPreview() {
+  introOverlay.classList.add("hidden");
+  map.invalidateSize();
+  showRestroomMarkers();
+  previewBanner.classList.remove("hidden");
+  mapStatusEl.textContent = "RESTROOM PREVIEW · 5 SECONDS";
+  let remaining = 5;
+  previewCountdown.textContent = remaining;
+  previewInterval = setInterval(() => {
+    remaining -= 1;
+    previewCountdown.textContent = Math.max(remaining, 0);
+  }, 1000);
+  previewTimeout = setTimeout(() => {
+    clearInterval(previewInterval);
+    previewInterval = null;
+    previewTimeout = null;
+    previewBanner.classList.add("hidden");
+    hideRestroomMarkers();
+    const startPoint = getRandomStartingPoint();
+    placePlayerAt(startPoint);
+    startRound();
+    evaluatePosition(true);
+    movementInstructions.textContent = "You spawned at a random location. Use W, A, S, and D to move 25 meters at a time. Arrow keys pan the map.";
+    mapStatusEl.textContent = "SEARCH STARTED — RANDOM SPAWN";
+  }, 5000);
 }
 
 function getRandomStartingPoint() {
@@ -178,7 +291,7 @@ function latToRad(degrees) { return degrees * Math.PI / 180; }
 function evaluatePosition(isFirstPosition) {
   const nearest = nearestQualifyingRestroom(latestGuessPoint);
   if (!nearest) {
-    setTemperature("NO TARGETS", "No sample facilities currently match this mission.", 0);
+    setTemperature("NO TARGETS", "No CSV facilities currently match this mission.", 0);
     return;
   }
 
@@ -269,6 +382,8 @@ function startStopwatch() {
 function endGame(won) {
   if (gameOver) return;
   gameOver = true;
+  showRestroomMarkers();
+  mapStatusEl.textContent = "AVAILABLE RESTROOMS REVEALED";
   clearInterval(timerInterval);
   timerInterval = null;
   if (gameMusic) { gameMusic.pause(); gameMusic.currentTime = 0; }
@@ -286,6 +401,12 @@ function formatElapsed(total) {
 }
 
 function resetGame() {
+  clearTimeout(previewTimeout);
+  clearInterval(previewInterval);
+  previewTimeout = null;
+  previewInterval = null;
+  previewBanner.classList.add("hidden");
+  hideRestroomMarkers();
   clearInterval(timerInterval);
   timerInterval = null;
   if (gameMusic) { gameMusic.pause(); gameMusic.currentTime = 0; }
@@ -325,15 +446,38 @@ document.addEventListener("keydown", event => {
 
 restartButton.addEventListener("click", resetGame);
 $("play-again-button").addEventListener("click", resetGame);
-beginButton.addEventListener("click", () => {
-  introOverlay.classList.add("hidden");
-  map.invalidateSize();
-  const startPoint = getRandomStartingPoint();
-  placePlayerAt(startPoint);
-  startRound();
-  evaluatePosition(true);
-  movementInstructions.textContent = "You spawned at a random location. Use W, A, S, and D to move 25 meters at a time. Arrow keys pan the map.";
-  mapStatusEl.textContent = "SEARCH STARTED — RANDOM SPAWN";
-});
-initMap();
-resetGame();
+beginButton.addEventListener("click", beginPreview);
+
+async function bootstrapGame() {
+  beginButton.disabled = true;
+  beginButton.textContent = "LOADING RESTROOM DATA…";
+  try {
+    await loadRestroomData();
+    initMap();
+    resetGame();
+    const count = qualifyingRestrooms.length;
+    $("intro-title").textContent = "TOILET TROUBLE";
+    document.querySelector(".intro-lead").textContent =
+      `Find 1 of ${count} operational, fully accessible public restrooms inside the Union Square search zone.`;
+    document.querySelector(".intro-note").textContent =
+      "Data source: Public_Restrooms_20261015.csv. Listings and hours may change; verify details before visiting.";
+    document.querySelector(".disclaimer").textContent =
+      "CSV DATA · Operational + fully accessible listings within the Union Square search zone. Verify hours before visiting.";
+    if (!count) {
+      beginButton.disabled = true;
+      beginButton.textContent = "NO QUALIFYING RESTROOMS";
+      setTemperature("NO TARGETS", "No operational, fully accessible restrooms were found in the search zone.", 0);
+    } else {
+      beginButton.disabled = false;
+      beginButton.textContent = "BEGIN SEARCH";
+    }
+  } catch (error) {
+    console.error(error);
+    document.querySelector(".intro-lead").textContent =
+      "Could not load the restroom CSV. Run this project through a local web server and make sure Public_Restrooms_20261015.csv is beside index.html.";
+    beginButton.disabled = true;
+    beginButton.textContent = "DATA FAILED TO LOAD";
+    $("map-status").textContent = "CSV LOAD ERROR";
+  }
+}
+bootstrapGame();
